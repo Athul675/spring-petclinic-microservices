@@ -20,9 +20,7 @@ pipeline {
 
         stage('Maven Build') {
             steps {
-                sh '''
-                  mvn clean install -DskipTests
-                '''
+                sh 'mvn clean install -DskipTests'
             }
         }
 
@@ -30,7 +28,11 @@ pipeline {
             steps {
                 withSonarQubeEnv('sonarqube') {
                     sh '''
-                      mvn sonar:sonar
+                      mvn verify -DskipTests \
+                      -Dsonar.projectKey=spring-petclinic-microservices \
+                      -Dsonar.projectName=spring-petclinic-microservices \
+                      -Dsonar.host.url=$SONAR_HOST_URL \
+                      -Dsonar.login=$SONAR_AUTH_TOKEN
                     '''
                 }
             }
@@ -40,9 +42,7 @@ pipeline {
             steps {
                 sh '''
                   echo "$DOCKERHUB_CREDS_PSW" | docker login -u "$DOCKERHUB_CREDS_USR" --password-stdin
-
                   chmod +x scripts/*.sh
-
                   ./scripts/build-images.sh
                   ./scripts/push-images.sh
                 '''
@@ -54,11 +54,9 @@ pipeline {
         success {
             echo 'CI Pipeline completed successfully'
         }
-
         failure {
             echo 'CI Pipeline failed'
         }
-
         always {
             cleanWs()
         }
