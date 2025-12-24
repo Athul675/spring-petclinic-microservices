@@ -20,7 +20,9 @@ pipeline {
 
         stage('Maven Build') {
             steps {
-                sh 'mvn clean install -DskipTests'
+                sh '''
+                  mvn clean install -DskipTests
+                '''
             }
         }
 
@@ -42,9 +44,12 @@ pipeline {
             steps {
                 sh '''
                   echo "$DOCKERHUB_CREDS_PSW" | docker login -u "$DOCKERHUB_CREDS_USR" --password-stdin
+
                   chmod +x scripts/*.sh
-                  ./scripts/build-images.sh
-                  ./scripts/push-images.sh
+
+                  ./scripts/run_all.sh
+                  ./scripts/tagImages.sh
+                  ./scripts/pushImages.sh
                 '''
             }
         }
@@ -54,9 +59,11 @@ pipeline {
         success {
             echo 'CI Pipeline completed successfully'
         }
+
         failure {
             echo 'CI Pipeline failed'
         }
+
         always {
             cleanWs()
         }
