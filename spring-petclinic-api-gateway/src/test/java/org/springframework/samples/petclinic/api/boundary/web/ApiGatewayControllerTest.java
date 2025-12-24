@@ -25,6 +25,8 @@ import java.util.List;
 @Import({ReactiveResilience4JAutoConfiguration.class, CircuitBreakerConfiguration.class})
 class ApiGatewayControllerTest {
 
+    private static final String PET_NAME = "Garfield";
+
     @MockitoBean
     private CustomersServiceClient customersServiceClient;
 
@@ -34,23 +36,25 @@ class ApiGatewayControllerTest {
     @Autowired
     private WebTestClient client;
 
-
     @Test
     void getOwnerDetails_withAvailableVisitsService() {
         PetDetails cat = PetDetails.PetDetailsBuilder.aPetDetails()
             .id(20)
-            .name("Garfield")
+            .name(PET_NAME)
             .visits(new ArrayList<>())
             .build();
+
         OwnerDetails owner = OwnerDetails.OwnerDetailsBuilder.anOwnerDetails()
             .pets(List.of(cat))
             .build();
+
         Mockito
             .when(customersServiceClient.getOwner(1))
             .thenReturn(Mono.just(owner));
 
         VisitDetails visit = new VisitDetails(300, cat.id(), null, "First visit");
         Visits visits = new Visits(List.of(visit));
+
         Mockito
             .when(visitsServiceClient.getVisitsForPets(Collections.singletonList(cat.id())))
             .thenReturn(Mono.just(visits));
@@ -60,7 +64,7 @@ class ApiGatewayControllerTest {
             .exchange()
             .expectStatus().isOk()
             .expectBody()
-            .jsonPath("$.pets[0].name").isEqualTo("Garfield")
+            .jsonPath("$.pets[0].name").isEqualTo(PET_NAME)
             .jsonPath("$.pets[0].visits[0].description").isEqualTo("First visit");
     }
 
@@ -71,12 +75,14 @@ class ApiGatewayControllerTest {
     void getOwnerDetails_withServiceError() {
         PetDetails cat = PetDetails.PetDetailsBuilder.aPetDetails()
             .id(20)
-            .name("Garfield")
+            .name(PET_NAME)
             .visits(new ArrayList<>())
             .build();
+
         OwnerDetails owner = OwnerDetails.OwnerDetailsBuilder.anOwnerDetails()
             .pets(List.of(cat))
             .build();
+
         Mockito
             .when(customersServiceClient.getOwner(1))
             .thenReturn(Mono.just(owner));
@@ -90,8 +96,7 @@ class ApiGatewayControllerTest {
             .exchange()
             .expectStatus().isOk()
             .expectBody()
-            .jsonPath("$.pets[0].name").isEqualTo("Garfield")
+            .jsonPath("$.pets[0].name").isEqualTo(PET_NAME)
             .jsonPath("$.pets[0].visits").isEmpty();
     }
-
 }
