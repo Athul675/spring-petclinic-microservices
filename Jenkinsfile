@@ -34,83 +34,79 @@ pipeline {
             steps {
                 withSonarQubeEnv('sonarqube') {
                     sh '''
-                    sonar-scanner \
-                      -Dsonar.projectKey=spring-petclinic-microservices \
-                      -Dsonar.projectName=spring-petclinic-microservices \
-                      -Dsonar.projectVersion=${BUILD_NUMBER} \
-                      -Dsonar.sources=. \
-                      -Dsonar.java.binaries=.
+                    mvn sonar:sonar \
+                      -Dsonar.login=$SONAR_TOKEN
                     '''
                 }
             }
         }
 
-        stage('Docker Build & Push') {
+        stage('Docker Login') {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'dockerhub-creds',
                     usernameVariable: 'DOCKER_USER',
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
-
-                    sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
-
                     sh '''
-                    docker build -f docker/Dockerfile \
-                      --build-arg ARTIFACT_NAME=spring-petclinic-admin-server/target/spring-petclinic-admin-server-4.0.1.jar \
-                      --build-arg EXPOSED_PORT=9090 \
-                      -t athul9thd/spring-petclinic-admin-server:${IMAGE_TAG} .
-                    docker push athul9thd/spring-petclinic-admin-server:${IMAGE_TAG}
-                    '''
-
-                    sh '''
-                    docker build -f docker/Dockerfile \
-                      --build-arg ARTIFACT_NAME=spring-petclinic-config-server/target/spring-petclinic-config-server-4.0.1.jar \
-                      --build-arg EXPOSED_PORT=8888 \
-                      -t athul9thd/spring-petclinic-config-server:${IMAGE_TAG} .
-                    docker push athul9thd/spring-petclinic-config-server:${IMAGE_TAG}
-                    '''
-
-                    sh '''
-                    docker build -f docker/Dockerfile \
-                      --build-arg ARTIFACT_NAME=spring-petclinic-discovery-server/target/spring-petclinic-discovery-server-4.0.1.jar \
-                      --build-arg EXPOSED_PORT=8761 \
-                      -t athul9thd/spring-petclinic-discovery-server:${IMAGE_TAG} .
-                    docker push athul9thd/spring-petclinic-discovery-server:${IMAGE_TAG}
-                    '''
-
-                    sh '''
-                    docker build -f docker/Dockerfile \
-                      --build-arg ARTIFACT_NAME=spring-petclinic-api-gateway/target/spring-petclinic-api-gateway-4.0.1.jar \
-                      --build-arg EXPOSED_PORT=8080 \
-                      -t athul9thd/spring-petclinic-api-gateway:${IMAGE_TAG} .
-                    docker push athul9thd/spring-petclinic-api-gateway:${IMAGE_TAG}
-                    '''
-
-                    sh '''
-                    docker build -f docker/Dockerfile \
-                      --build-arg ARTIFACT_NAME=spring-petclinic-customers-service/target/spring-petclinic-customers-service-4.0.1.jar \
-                      --build-arg EXPOSED_PORT=8081 \
-                      -t athul9thd/spring-petclinic-customers-service:${IMAGE_TAG} .
-                    docker push athul9thd/spring-petclinic-customers-service:${IMAGE_TAG}
-                    '''
-
-                    sh '''
-                    docker build -f docker/Dockerfile \
-                      --build-arg ARTIFACT_NAME=spring-petclinic-vets-service/target/spring-petclinic-vets-service-4.0.1.jar \
-                      --build-arg EXPOSED_PORT=8083 \
-                      -t athul9thd/spring-petclinic-vets-service:${IMAGE_TAG} .
-                    docker push athul9thd/spring-petclinic-vets-service:${IMAGE_TAG}
-                    '''
-
-                    sh '''
-                    docker build -f docker/Dockerfile \
-                      --build-arg ARTIFACT_NAME=spring-petclinic-visits-service/target/spring-petclinic-visits-service-4.0.1.jar \
-                      --build-arg EXPOSED_PORT=8082 \
-                      -t athul9thd/spring-petclinic-visits-service:${IMAGE_TAG} .
-                    docker push athul9thd/spring-petclinic-visits-service:${IMAGE_TAG}
+                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
                     '''
                 }
+            }
+        }
+
+        stage('Build & Push Docker Images') {
+            steps {
+                sh '''
+                set -e
+
+                build_and_push () {
+                  SERVICE_NAME=$1
+                  JAR_PATH=$2
+                  PORT=$3
+
+                  echo "Building $SERVICE_NAME"
+
+                  docker build -f docker/Dockerfile \
+                    --build-arg ARTIFACT_NAME=$JAR_PATH \
+                    --build-arg EXPOSED_PORT=$PORT \
+                    -t $DOCKERHUB_USERNAME/$SERVICE_NAME:$IMAGE_TAG .
+
+                  docker push $DOCKERHUB_USERNAME/$SERVICE_NAME:$IMAGE_TAG
+                }
+
+                build_and_push spring-petclinic-admin-server \
+                  spring-petclinic-admin-server/target/spring-petclinic-admin-server-4.0.1 \
+                  9090
+
+                build_and_push spring-petclinic-config-server \
+                  spring-petclinic-config-server/target/spring-petclinic-config-server-4.0.1 \
+                  8888
+
+                build_and_push spring-petclinic-discovery-server \
+                  spring-petclinic-discovery-server/target/spring-petclinic-discovery-server-4.0.1 \
+                  8761
+
+                build_and_push spring-petclinic-api-gateway \
+                  spring-petclinic-api-gateway/target/spring-petclinic-api-gateway-4.0.1 \
+                  8080
+
+                build_and_push spring-petclinic-customers-service \
+                  spring-petclinic-customers-service/target/spring-petclinic-customers-service-4.0.1 \
+                  8081
+
+                build_and_push spring-petclinic-visits-service \
+                  spring-petclinic-visits-service/target/spring-petclinic-visits-service-4.0.1 \
+                  8082
+
+                build_and_push spring-petclinic-vets-service \
+                  spring-petclinic-vets-service/target/spring-petclinic-vets-service-4.0.1 \
+                  8083
+
+                build_and_push spring-petclinic-genai-service \
+                  spring-petclinic-genai-service/target/spring-petclinic-genai-service-4.0.1 \
+                  8084
+                '''
             }
         }
     }
