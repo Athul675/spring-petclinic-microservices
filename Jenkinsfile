@@ -2,8 +2,8 @@ pipeline {
     agent any
 
     tools {
-        maven 'maven-3.8.7'
         jdk 'jdk-17'
+        maven 'maven-3.8.7'
     }
 
     environment {
@@ -13,7 +13,7 @@ pipeline {
 
     stages {
 
-        stage('Checkout') {
+        stage('Checkout Source') {
             steps {
                 git branch: 'main',
                     url: 'https://github.com/Athul675/spring-petclinic-microservices.git',
@@ -23,7 +23,9 @@ pipeline {
 
         stage('Maven Build') {
             steps {
-                sh 'mvn clean package -DskipTests'
+                sh '''
+                  mvn clean package -DskipTests
+                '''
             }
         }
 
@@ -34,12 +36,12 @@ pipeline {
             steps {
                 withSonarQubeEnv('sonarqube') {
                     sh '''
-                    sonar-scanner \
-                      -Dsonar.projectKey=spring-petclinic-microservices \
-                      -Dsonar.projectName=spring-petclinic-microservices \
-                      -Dsonar.sources=. \
-                      -Dsonar.java.binaries=**/target/classes \
-                      -Dsonar.login=$SONAR_TOKEN
+                      /opt/sonar-scanner/bin/sonar-scanner \
+                        -Dsonar.projectKey=spring-petclinic-microservices \
+                        -Dsonar.projectName=spring-petclinic-microservices \
+                        -Dsonar.sources=. \
+                        -Dsonar.java.binaries=**/target/classes \
+                        -Dsonar.login=$SONAR_TOKEN
                     '''
                 }
             }
@@ -53,32 +55,35 @@ pipeline {
                     passwordVariable: 'DOCKER_PASS'
                 )]) {
 
-                    sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+                    sh '''
+                      echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                    '''
 
                     sh '''
-                    build_and_push () {
-                      SERVICE=$1
-                      PORT=$2
-                      IMAGE=$3
+                      SERVICES=(
+                        spring-petclinic-admin-server:9090
+                        spring-petclinic-config-server:8888
+                        spring-petclinic-discovery-server:8761
+                        spring-petclinic-api-gateway:8080
+                        spring-petclinic-customers-service:8081
+                        spring-petclinic-visits-service:8082
+                        spring-petclinic-vets-service:8083
+                        spring-petclinic-genai-service:8084
+                      )
 
-                      JAR=$(ls $SERVICE/target/*.jar | grep -v original | sed 's/.jar$//')
+                      for SERVICE in "${SERVICES[@]}"; do
+                        NAME=$(echo $SERVICE | cut -d: -f1)
+                        PORT=$(echo $SERVICE | cut -d: -f2)
 
-                      docker build -f docker/Dockerfile \
-                        --build-arg ARTIFACT_NAME=$JAR \
-                        --build-arg EXPOSED_PORT=$PORT \
-                        -t $DOCKERHUB_USERNAME/$IMAGE:$IMAGE_TAG .
+                        echo "Building image for $NAME"
 
-                      docker push $DOCKERHUB_USERNAME/$IMAGE:$IMAGE_TAG
-                    }
+                        docker build -f docker/Dockerfile \
+                          --build-arg ARTIFACT_NAME=$NAME/target/$NAME-4.0.1 \
+                          --build-arg EXPOSED_PORT=$PORT \
+                          -t $DOCKERHUB_USERNAME/$NAME:$IMAGE_TAG .
 
-                    build_and_push spring-petclinic-admin-server      9090 spring-petclinic-admin-server
-                    build_and_push spring-petclinic-config-server     8888 spring-petclinic-config-server
-                    build_and_push spring-petclinic-discovery-server  8761 spring-petclinic-discovery-server
-                    build_and_push spring-petclinic-api-gateway       8080 spring-petclinic-api-gateway
-                    build_and_push spring-petclinic-customers-service 8081 spring-petclinic-customers-service
-                    build_and_push spring-petclinic-visits-service    8082 spring-petclinic-visits-service
-                    build_and_push spring-petclinic-vets-service      8083 spring-petclinic-vets-service
-                    build_and_push spring-petclinic-genai-service     8084 spring-petclinic-genai-service
+                        docker push $DOCKERHUB_USERNAME/$NAME:$IMAGE_TAG
+                      done
                     '''
                 }
             }
