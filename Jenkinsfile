@@ -34,10 +34,12 @@ pipeline {
             steps {
                 withSonarQubeEnv('sonarqube') {
                     sh '''
-                    mvn sonar:sonar \
-                      -Dsonar.login=$SONAR_TOKEN \
+                    sonar-scanner \
                       -Dsonar.projectKey=spring-petclinic-microservices \
-                      -Dsonar.projectName=spring-petclinic-microservices
+                      -Dsonar.projectName=spring-petclinic-microservices \
+                      -Dsonar.sources=. \
+                      -Dsonar.java.binaries=**/target/classes \
+                      -Dsonar.login=$SONAR_TOKEN
                     '''
                 }
             }
