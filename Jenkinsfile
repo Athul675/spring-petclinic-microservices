@@ -2,13 +2,13 @@ pipeline {
     agent any
 
     tools {
-        jdk 'jdk-17'
         maven 'maven-3.8.7'
+        jdk 'jdk-17'
     }
 
     environment {
-        DOCKERHUB_USERNAME = 'athul9thd'
-        IMAGE_TAG = "${BUILD_NUMBER}"
+        REGISTRY = "athul9thd"
+        IMAGE_TAG = "${env.BUILD_NUMBER}"
     }
 
     stages {
@@ -31,59 +31,57 @@ pipeline {
 
         stage('SonarQube Scan') {
             environment {
-                SONAR_TOKEN = credentials('sonar-token')
+                SONAR_SCANNER = tool 'sonar-scanner'
             }
             steps {
                 withSonarQubeEnv('sonarqube') {
-                    sh '''
-                      /opt/sonar-scanner/bin/sonar-scanner \
-                        -Dsonar.projectKey=spring-petclinic-microservices \
-                        -Dsonar.projectName=spring-petclinic-microservices \
-                        -Dsonar.sources=. \
-                        -Dsonar.java.binaries=**/target/classes \
-                        -Dsonar.login=$SONAR_TOKEN
-                    '''
+                    withCredentials([
+                        string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')
+                    ]) {
+                        sh '''
+                          /opt/sonar-scanner/bin/sonar-scanner \
+                          -Dsonar.projectKey=spring-petclinic-microservices \
+                          -Dsonar.projectName=spring-petclinic-microservices \
+                          -Dsonar.sources=. \
+                          -Dsonar.java.binaries=**/target/classes \
+                          -Dsonar.login=$SONAR_TOKEN
+                        '''
+                    }
                 }
             }
         }
 
         stage('Docker Build & Push') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-creds',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'dockerhub-creds',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
+                    )
+                ]) {
                     sh '''
-                      echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                    '''
+                    #!/bin/bash
+                    set -e
 
-                    sh '''
-                      SERVICES=(
-                        spring-petclinic-admin-server:9090
-                        spring-petclinic-config-server:8888
-                        spring-petclinic-discovery-server:8761
-                        spring-petclinic-api-gateway:8080
-                        spring-petclinic-customers-service:8081
-                        spring-petclinic-visits-service:8082
-                        spring-petclinic-vets-service:8083
-                        spring-petclinic-genai-service:8084
-                      )
+                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
 
-                      for SERVICE in "${SERVICES[@]}"; do
-                        NAME=$(echo $SERVICE | cut -d: -f1)
-                        PORT=$(echo $SERVICE | cut -d: -f2)
+                    SERVICES=(
+                      spring-petclinic-admin-server
+                      spring-petclinic-customers-service
+                      spring-petclinic-vets-service
+                      spring-petclinic-visits-service
+                      spring-petclinic-genai-service
+                      spring-petclinic-config-server
+                      spring-petclinic-discovery-server
+                      spring-petclinic-api-gateway
+                    )
 
-                        echo "Building image for $NAME"
-
-                        docker build -f docker/Dockerfile \
-                          --build-arg ARTIFACT_NAME=$NAME/target/$NAME-4.0.1 \
-                          --build-arg EXPOSED_PORT=$PORT \
-                          -t $DOCKERHUB_USERNAME/$NAME:$IMAGE_TAG .
-
-                        docker push $DOCKERHUB_USERNAME/$NAME:$IMAGE_TAG
-                      done
+                    for SERVICE in "${SERVICES[@]}"; do
+                      echo "Building $SERVICE"
+                      docker build -t $REGISTRY/$SERVICE:4.0.1-$IMAGE_TAG $SERVICE
+                      docker push $REGISTRY/$SERVICE:4.0.1-$IMAGE_TAG
+                    done
                     '''
                 }
             }
