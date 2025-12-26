@@ -103,7 +103,7 @@ pipeline {
 
                 build_and_push spring-petclinic-genai-service \
                   spring-petclinic-genai-service/target/spring-petclinic-genai-service-4.0.1 \
-                  8084
+                  8080
                 '''
             }
         }
