@@ -7,13 +7,13 @@ pipeline {
     }
 
     environment {
-        REGISTRY = "athul9thd"
-        IMAGE_TAG = "${env.BUILD_NUMBER}"
+        DOCKERHUB_USERNAME = 'athul9thd'
+        IMAGE_TAG = "${BUILD_NUMBER}"
     }
 
     stages {
 
-        stage('Checkout Source') {
+        stage('Checkout') {
             steps {
                 git branch: 'main',
                     url: 'https://github.com/Athul675/spring-petclinic-microservices.git',
@@ -23,30 +23,20 @@ pipeline {
 
         stage('Maven Build') {
             steps {
-                sh '''
-                  mvn clean package -DskipTests
-                '''
+                sh 'mvn clean package -DskipTests'
             }
         }
 
         stage('SonarQube Scan') {
             environment {
-                SONAR_SCANNER = tool 'sonar-scanner'
+                SONAR_TOKEN = credentials('sonar-token')
             }
             steps {
                 withSonarQubeEnv('sonarqube') {
-                    withCredentials([
-                        string(credentialsId: 'sonarqube-token', variable: 'SONAR_TOKEN')
-                    ]) {
-                        sh '''
-                          /opt/sonar-scanner/bin/sonar-scanner \
-                          -Dsonar.projectKey=spring-petclinic-microservices \
-                          -Dsonar.projectName=spring-petclinic-microservices \
-                          -Dsonar.sources=. \
-                          -Dsonar.java.binaries=**/target/classes \
+                    sh '''
+                        mvn sonar:sonar \
                           -Dsonar.login=$SONAR_TOKEN
-                        '''
-                    }
+                    '''
                 }
             }
         }
@@ -60,28 +50,65 @@ pipeline {
                         passwordVariable: 'DOCKER_PASS'
                     )
                 ]) {
+
                     sh '''
-                    #!/bin/bash
-                    set -e
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                    '''
 
-                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                    sh '''
+                        docker build -f docker/Dockerfile \
+                          --build-arg ARTIFACT_NAME=spring-petclinic-admin-server/target/spring-petclinic-admin-server-4.0.1 \
+                          --build-arg EXPOSED_PORT=9090 \
+                          -t athul9thd/spring-petclinic-admin-server:$IMAGE_TAG .
+                        docker push athul9thd/spring-petclinic-admin-server:$IMAGE_TAG
+                    '''
 
-                    SERVICES=(
-                      spring-petclinic-admin-server
-                      spring-petclinic-customers-service
-                      spring-petclinic-vets-service
-                      spring-petclinic-visits-service
-                      spring-petclinic-genai-service
-                      spring-petclinic-config-server
-                      spring-petclinic-discovery-server
-                      spring-petclinic-api-gateway
-                    )
+                    sh '''
+                        docker build -f docker/Dockerfile \
+                          --build-arg ARTIFACT_NAME=spring-petclinic-config-server/target/spring-petclinic-config-server-4.0.1 \
+                          --build-arg EXPOSED_PORT=8888 \
+                          -t athul9thd/spring-petclinic-config-server:$IMAGE_TAG .
+                        docker push athul9thd/spring-petclinic-config-server:$IMAGE_TAG
+                    '''
 
-                    for SERVICE in "${SERVICES[@]}"; do
-                      echo "Building $SERVICE"
-                      docker build -t $REGISTRY/$SERVICE:4.0.1-$IMAGE_TAG $SERVICE
-                      docker push $REGISTRY/$SERVICE:4.0.1-$IMAGE_TAG
-                    done
+                    sh '''
+                        docker build -f docker/Dockerfile \
+                          --build-arg ARTIFACT_NAME=spring-petclinic-discovery-server/target/spring-petclinic-discovery-server-4.0.1 \
+                          --build-arg EXPOSED_PORT=8761 \
+                          -t athul9thd/spring-petclinic-discovery-server:$IMAGE_TAG .
+                        docker push athul9thd/spring-petclinic-discovery-server:$IMAGE_TAG
+                    '''
+
+                    sh '''
+                        docker build -f docker/Dockerfile \
+                          --build-arg ARTIFACT_NAME=spring-petclinic-api-gateway/target/spring-petclinic-api-gateway-4.0.1 \
+                          --build-arg EXPOSED_PORT=8080 \
+                          -t athul9thd/spring-petclinic-api-gateway:$IMAGE_TAG .
+                        docker push athul9thd/spring-petclinic-api-gateway:$IMAGE_TAG
+                    '''
+
+                    sh '''
+                        docker build -f docker/Dockerfile \
+                          --build-arg ARTIFACT_NAME=spring-petclinic-customers-service/target/spring-petclinic-customers-service-4.0.1 \
+                          --build-arg EXPOSED_PORT=8081 \
+                          -t athul9thd/spring-petclinic-customers-service:$IMAGE_TAG .
+                        docker push athul9thd/spring-petclinic-customers-service:$IMAGE_TAG
+                    '''
+
+                    sh '''
+                        docker build -f docker/Dockerfile \
+                          --build-arg ARTIFACT_NAME=spring-petclinic-vets-service/target/spring-petclinic-vets-service-4.0.1 \
+                          --build-arg EXPOSED_PORT=8083 \
+                          -t athul9thd/spring-petclinic-vets-service:$IMAGE_TAG .
+                        docker push athul9thd/spring-petclinic-vets-service:$IMAGE_TAG
+                    '''
+
+                    sh '''
+                        docker build -f docker/Dockerfile \
+                          --build-arg ARTIFACT_NAME=spring-petclinic-visits-service/target/spring-petclinic-visits-service-4.0.1 \
+                          --build-arg EXPOSED_PORT=8082 \
+                          -t athul9thd/spring-petclinic-visits-service:$IMAGE_TAG .
+                        docker push athul9thd/spring-petclinic-visits-service:$IMAGE_TAG
                     '''
                 }
             }
