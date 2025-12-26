@@ -2,68 +2,83 @@ pipeline {
     agent any
 
     tools {
-        jdk 'jdk-17'
         maven 'maven-3.8.7'
+        jdk 'jdk-17'
     }
 
     environment {
-        DOCKERHUB_CREDS = credentials('dockerhub-creds')
+        DOCKERHUB_USERNAME = 'athul9thd'
+        IMAGE_TAG = "${BUILD_NUMBER}"
     }
 
     stages {
 
-        stage('Checkout Source') {
+        stage('Checkout') {
             steps {
-                checkout scm
+                git branch: 'main',
+                    url: 'https://github.com/Athul675/spring-petclinic-microservices.git',
+                    credentialsId: 'github-pat'
             }
         }
 
         stage('Maven Build') {
             steps {
-                sh '''
-                  mvn clean install -DskipTests
-                '''
+                sh 'mvn clean package -DskipTests'
             }
         }
 
-        stage('SonarQube Analysis') {
+        stage('SonarQube Scan') {
+            environment {
+                SONAR_TOKEN = credentials('sonar-token')
+            }
             steps {
                 withSonarQubeEnv('sonarqube') {
-                    sh '''
-                      mvn verify -DskipTests \
-                      -Dsonar.projectKey=spring-petclinic-microservices \
-                      -Dsonar.projectName=spring-petclinic-microservices \
-                      -Dsonar.host.url=$SONAR_HOST_URL \
-                      -Dsonar.login=$SONAR_AUTH_TOKEN
-                    '''
+                    sh 'mvn sonar:sonar -Dsonar.login=$SONAR_TOKEN'
                 }
             }
         }
 
-        stage('Build & Push Docker Images') {
+        stage('Docker Build & Push') {
             steps {
-                sh '''
-                  echo "$DOCKERHUB_CREDS_PSW" | docker login -u "$DOCKERHUB_CREDS_USR" --password-stdin
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
 
-                  chmod +x scripts/*.sh
+                    sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
 
-                  ./scripts/run_all.sh
-                  ./scripts/tagImages.sh
-                  ./scripts/pushImages.sh
-                '''
+                    sh '''
+                    build_and_push () {
+                      SERVICE=$1
+                      PORT=$2
+                      IMAGE=$3
+
+                      JAR=$(ls $SERVICE/target/*.jar | grep -v original | sed 's/.jar$//')
+
+                      docker build -f docker/Dockerfile \
+                        --build-arg ARTIFACT_NAME=$JAR \
+                        --build-arg EXPOSED_PORT=$PORT \
+                        -t $DOCKERHUB_USERNAME/$IMAGE:$IMAGE_TAG .
+
+                      docker push $DOCKERHUB_USERNAME/$IMAGE:$IMAGE_TAG
+                    }
+
+                    build_and_push spring-petclinic-admin-server      9090 spring-petclinic-admin-server
+                    build_and_push spring-petclinic-config-server     8888 spring-petclinic-config-server
+                    build_and_push spring-petclinic-discovery-server  8761 spring-petclinic-discovery-server
+                    build_and_push spring-petclinic-api-gateway       8080 spring-petclinic-api-gateway
+                    build_and_push spring-petclinic-customers-service 8081 spring-petclinic-customers-service
+                    build_and_push spring-petclinic-visits-service    8082 spring-petclinic-visits-service
+                    build_and_push spring-petclinic-vets-service      8083 spring-petclinic-vets-service
+                    build_and_push spring-petclinic-genai-service     8084 spring-petclinic-genai-service
+                    '''
+                }
             }
         }
     }
 
     post {
-        success {
-            echo 'CI Pipeline completed successfully'
-        }
-
-        failure {
-            echo 'CI Pipeline failed'
-        }
-
         always {
             cleanWs()
         }
