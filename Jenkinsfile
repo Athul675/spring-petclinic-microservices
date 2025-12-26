@@ -34,7 +34,7 @@ pipeline {
             steps {
                 withSonarQubeEnv('sonarqube') {
                     sh '''
-                    mvn sonar:sonar \
+                    /opt/sonar-scanner/bin/sonar-scanner \
                       -Dsonar.login=$SONAR_TOKEN
                     '''
                 }
@@ -61,18 +61,16 @@ pipeline {
                 set -e
 
                 build_and_push () {
-                  SERVICE_NAME=$1
-                  JAR_PATH=$2
+                  SERVICE=$1
+                  JAR=$2
                   PORT=$3
 
-                  echo "Building $SERVICE_NAME"
-
                   docker build -f docker/Dockerfile \
-                    --build-arg ARTIFACT_NAME=$JAR_PATH \
+                    --build-arg ARTIFACT_NAME=$JAR \
                     --build-arg EXPOSED_PORT=$PORT \
-                    -t $DOCKERHUB_USERNAME/$SERVICE_NAME:$IMAGE_TAG .
+                    -t $DOCKERHUB_USERNAME/$SERVICE:$IMAGE_TAG .
 
-                  docker push $DOCKERHUB_USERNAME/$SERVICE_NAME:$IMAGE_TAG
+                  docker push $DOCKERHUB_USERNAME/$SERVICE:$IMAGE_TAG
                 }
 
                 build_and_push spring-petclinic-admin-server \
