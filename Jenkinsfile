@@ -6,9 +6,15 @@ pipeline {
         jdk 'jdk-17'
     }
 
+    parameters {
+        choice(name: 'ENV', choices: ['dev', 'uat', 'prod'], description: 'Target environment')
+        string(name: 'IMAGE_TAG', defaultValue: 'dev', description: 'Docker image tag')
+        booleanParam(name: 'DEPLOY', defaultValue: true, description: 'Deploy to Kubernetes')
+    }
+
     environment {
         DOCKERHUB_USERNAME = 'athul9thd'
-        IMAGE_TAG = "${BUILD_NUMBER}"
+        K8S_BASE = 'k8s/petclinic'
     }
 
     stages {
@@ -21,90 +27,81 @@ pipeline {
             }
         }
 
-        stage('Maven Build') {
+        stage('Build, Sonar & Docker (Per Service)') {
             steps {
-                sh 'mvn clean package -DskipTests'
-            }
-        }
+                script {
 
-        stage('SonarQube Scan') {
-            environment {
-                SONAR_TOKEN = credentials('sonar-token')
-            }
-            steps {
-                withSonarQubeEnv('sonarqube') {
-                    sh '''
-                    /opt/sonar-scanner/bin/sonar-scanner \
-                      -Dsonar.login=$SONAR_TOKEN
-                    '''
+                    def services = [
+                      "spring-petclinic-config-server",
+                      "spring-petclinic-discovery-server",
+                      "spring-petclinic-admin-server",
+                      "spring-petclinic-customers-service",
+                      "spring-petclinic-vets-service",
+                      "spring-petclinic-visits-service",
+                      "spring-petclinic-api-gateway",
+                      "spring-petclinic-genai-service"
+                    ]
+
+                    withCredentials([
+                        usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS'),
+                        string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')
+                    ]) {
+
+                        sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
+
+                        for (svc in services) {
+
+                            stage("Build ${svc}") {
+                                dir(svc) {
+                                    sh 'mvn clean package -DskipTests'
+                                }
+                            }
+
+                            stage("Sonar ${svc}") {
+                                dir(svc) {
+                                    withSonarQubeEnv('sonarqube') {
+                                        sh """
+                                        /opt/sonar-scanner/bin/sonar-scanner \
+                                          -Dsonar.login=$SONAR_TOKEN
+                                        """
+                                    }
+                                }
+                            }
+
+                            stage("Docker ${svc}") {
+                                dir(svc) {
+                                    sh """
+                                    docker build -t ${DOCKERHUB_USERNAME}/${svc}:${IMAGE_TAG} .
+                                    docker push ${DOCKERHUB_USERNAME}/${svc}:${IMAGE_TAG}
+                                    """
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        stage('Docker Login') {
-            steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-creds',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    sh '''
-                    echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
-                    '''
-                }
+        stage('Kubernetes Deploy') {
+            when {
+                expression { params.DEPLOY }
             }
-        }
-
-        stage('Build & Push Docker Images') {
             steps {
-                sh '''
-                set -e
+                sh """
+                kubectl apply -f ${K8S_BASE}/namespace
+                kubectl apply -f ${K8S_BASE}/database
+                kubectl apply -f ${K8S_BASE}/config-server
+                kubectl apply -f ${K8S_BASE}/discovery
+                kubectl apply -f ${K8S_BASE}/admin-server
 
-                build_and_push () {
-                  SERVICE=$1
-                  JAR=$2
-                  PORT=$3
+                kubectl apply -f ${K8S_BASE}/micro-services/customers
+                kubectl apply -f ${K8S_BASE}/micro-services/vets
+                kubectl apply -f ${K8S_BASE}/micro-services/visits
+                kubectl apply -f ${K8S_BASE}/micro-services/api-gateway
 
-                  docker build -f docker/Dockerfile \
-                    --build-arg ARTIFACT_NAME=$JAR \
-                    --build-arg EXPOSED_PORT=$PORT \
-                    -t $DOCKERHUB_USERNAME/$SERVICE:$IMAGE_TAG .
-
-                  docker push $DOCKERHUB_USERNAME/$SERVICE:$IMAGE_TAG
-                }
-
-                build_and_push spring-petclinic-admin-server \
-                  spring-petclinic-admin-server/target/spring-petclinic-admin-server-4.0.1 \
-                  9090
-
-                build_and_push spring-petclinic-config-server \
-                  spring-petclinic-config-server/target/spring-petclinic-config-server-4.0.1 \
-                  8888
-
-                build_and_push spring-petclinic-discovery-server \
-                  spring-petclinic-discovery-server/target/spring-petclinic-discovery-server-4.0.1 \
-                  8761
-
-                build_and_push spring-petclinic-api-gateway \
-                  spring-petclinic-api-gateway/target/spring-petclinic-api-gateway-4.0.1 \
-                  8080
-
-                build_and_push spring-petclinic-customers-service \
-                  spring-petclinic-customers-service/target/spring-petclinic-customers-service-4.0.1 \
-                  8081
-
-                build_and_push spring-petclinic-visits-service \
-                  spring-petclinic-visits-service/target/spring-petclinic-visits-service-4.0.1 \
-                  8082
-
-                build_and_push spring-petclinic-vets-service \
-                  spring-petclinic-vets-service/target/spring-petclinic-vets-service-4.0.1 \
-                  8083
-
-                build_and_push spring-petclinic-genai-service \
-                  spring-petclinic-genai-service/target/spring-petclinic-genai-service-4.0.1 \
-                  8080
-                '''
+                kubectl apply -f ${K8S_BASE}/ingress
+                kubectl apply -f ${K8S_BASE}/hpa
+                """
             }
         }
     }
