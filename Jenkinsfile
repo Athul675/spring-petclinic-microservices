@@ -31,9 +31,6 @@ pipeline {
 
     stages {
 
-        /* =======================
-           CHECKOUT SOURCE
-           ======================= */
         stage('Checkout') {
             steps {
                 git branch: 'main',
@@ -42,9 +39,6 @@ pipeline {
             }
         }
 
-        /* =======================
-           MAVEN REACTOR BUILD
-           ======================= */
         stage('Build All Services (Maven Reactor)') {
             steps {
                 sh '''
@@ -53,9 +47,6 @@ pipeline {
             }
         }
 
-        /* =======================
-           SONAR + DOCKER PER SERVICE
-           ======================= */
         stage('Sonar & Docker (Per Service)') {
             steps {
                 script {
@@ -92,7 +83,8 @@ pipeline {
                                     withSonarQubeEnv('sonarqube') {
                                         sh '''
                                         /opt/sonar-scanner/bin/sonar-scanner \
-                                          -Dsonar.login=$SONAR_TOKEN
+                                          -Dsonar.login=$SONAR_TOKEN \
+                                          -Dsonar.java.binaries=target/classes
                                         '''
                                     }
                                 }
@@ -112,9 +104,6 @@ pipeline {
             }
         }
 
-        /* =======================
-           KUBERNETES DEPLOY
-           ======================= */
         stage('Kubernetes Deploy') {
             when {
                 expression { params.DEPLOY }
