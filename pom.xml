@@ -5,87 +5,65 @@
 
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.springframework.samples</groupId>
-    <artifactId>spring-petclinic-microservices</artifactId>
+    <parent>
+        <groupId>org.springframework.samples</groupId>
+        <artifactId>spring-petclinic-microservices</artifactId>
+        <version>4.0.1</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <groupId>org.springframework.samples.petclinic.client</groupId>
+    <artifactId>spring-petclinic-customers-service</artifactId>
     <version>4.0.1</version>
-    <packaging>pom</packaging>
+    <packaging>jar</packaging>
 
-    <name>Spring Petclinic Microservices</name>
+    <name>Spring Petclinic Customers Service</name>
 
-    <modules>
-        <module>spring-petclinic-config-server</module>
-        <module>spring-petclinic-discovery-server</module>
-        <module>spring-petclinic-admin-server</module>
-        <module>spring-petclinic-customers-service</module>
-        <module>spring-petclinic-vets-service</module>
-        <module>spring-petclinic-visits-service</module>
-        <module>spring-petclinic-api-gateway</module>
-        <module>spring-petclinic-genai-service</module>
-    </modules>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
+        </dependency>
 
-    <properties>
-        <java.version>17</java.version>
-        <spring-boot.version>3.2.5</spring-boot.version>
-        <spring-cloud.version>2023.0.3</spring-cloud.version>
-        <spring-boot-admin.version>3.4.1</spring-boot-admin.version>
-        <jolokia.version>1.7.2</jolokia.version>
-        <chaos-monkey.version>3.0.1</chaos-monkey.version>
-        <datasource-micrometer.version>1.0.3</datasource-micrometer.version>
-    </properties>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
 
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-dependencies</artifactId>
-                <version>${spring-boot.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-config</artifactId>
+        </dependency>
 
-            <dependency>
-                <groupId>org.springframework.cloud</groupId>
-                <artifactId>spring-cloud-dependencies</artifactId>
-                <version>${spring-cloud.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+        </dependency>
 
-            <dependency>
-                <groupId>de.codecentric</groupId>
-                <artifactId>spring-boot-admin-dependencies</artifactId>
-                <version>${spring-boot-admin.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
+        <dependency>
+            <groupId>org.jolokia</groupId>
+            <artifactId>jolokia-core</artifactId>
+        </dependency>
 
-            <dependency>
-                <groupId>org.jolokia</groupId>
-                <artifactId>jolokia-core</artifactId>
-                <version>${jolokia.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>de.codecentric</groupId>
-                <artifactId>chaos-monkey-spring-boot</artifactId>
-                <version>${chaos-monkey.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>net.ttddyy.observation</groupId>
-                <artifactId>datasource-micrometer-spring-boot</artifactId>
-                <version>${datasource-micrometer.version}</version>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
+        <dependency>
+            <groupId>com.mysql</groupId>
+            <artifactId>mysql-connector-j</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 
     <build>
-        <pluginManagement>
-            <plugins>
-                <plugin>
-                    <groupId>org.springframework.boot</groupId>
-                    <artifactId>spring-boot-maven-plugin</artifactId>
-                    <version>${spring-boot.version}</version>
-                </plugin>
-            </plugins>
-        </pluginManagement>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
     </build>
 </project>
