@@ -7,9 +7,21 @@ pipeline {
     }
 
     parameters {
-        choice(name: 'ENV', choices: ['dev', 'uat', 'prod'], description: 'Target environment')
-        string(name: 'IMAGE_TAG', defaultValue: 'dev', description: 'Docker image tag')
-        booleanParam(name: 'DEPLOY', defaultValue: true, description: 'Deploy to Kubernetes')
+        choice(
+            name: 'ENV',
+            choices: ['dev', 'uat', 'prod'],
+            description: 'Target environment'
+        )
+        string(
+            name: 'IMAGE_TAG',
+            defaultValue: 'dev',
+            description: 'Docker image tag'
+        )
+        booleanParam(
+            name: 'DEPLOY',
+            defaultValue: true,
+            description: 'Deploy to Kubernetes'
+        )
     }
 
     environment {
@@ -19,6 +31,9 @@ pipeline {
 
     stages {
 
+        /* =======================
+           CHECKOUT SOURCE
+           ======================= */
         stage('Checkout') {
             steps {
                 git branch: 'main',
@@ -27,43 +42,58 @@ pipeline {
             }
         }
 
-        stage('Build, Sonar & Docker (Per Service)') {
+        /* =======================
+           MAVEN REACTOR BUILD
+           ======================= */
+        stage('Build All Services (Maven Reactor)') {
+            steps {
+                sh '''
+                mvn -B clean package -DskipTests
+                '''
+            }
+        }
+
+        /* =======================
+           SONAR + DOCKER PER SERVICE
+           ======================= */
+        stage('Sonar & Docker (Per Service)') {
             steps {
                 script {
 
                     def services = [
-                      "spring-petclinic-config-server",
-                      "spring-petclinic-discovery-server",
-                      "spring-petclinic-admin-server",
-                      "spring-petclinic-customers-service",
-                      "spring-petclinic-vets-service",
-                      "spring-petclinic-visits-service",
-                      "spring-petclinic-api-gateway",
-                      "spring-petclinic-genai-service"
+                        "spring-petclinic-config-server",
+                        "spring-petclinic-discovery-server",
+                        "spring-petclinic-admin-server",
+                        "spring-petclinic-customers-service",
+                        "spring-petclinic-vets-service",
+                        "spring-petclinic-visits-service",
+                        "spring-petclinic-api-gateway",
+                        "spring-petclinic-genai-service"
                     ]
 
                     withCredentials([
-                        usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS'),
-                        string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')
+                        usernamePassword(
+                            credentialsId: 'dockerhub-creds',
+                            usernameVariable: 'DOCKER_USER',
+                            passwordVariable: 'DOCKER_PASS'
+                        ),
+                        string(
+                            credentialsId: 'sonar-token',
+                            variable: 'SONAR_TOKEN'
+                        )
                     ]) {
 
                         sh 'echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin'
 
                         for (svc in services) {
 
-                            stage("Build ${svc}") {
-                                dir(svc) {
-                                    sh 'mvn clean package -DskipTests'
-                                }
-                            }
-
                             stage("Sonar ${svc}") {
                                 dir(svc) {
                                     withSonarQubeEnv('sonarqube') {
-                                        sh """
+                                        sh '''
                                         /opt/sonar-scanner/bin/sonar-scanner \
                                           -Dsonar.login=$SONAR_TOKEN
-                                        """
+                                        '''
                                     }
                                 }
                             }
@@ -82,14 +112,18 @@ pipeline {
             }
         }
 
+        /* =======================
+           KUBERNETES DEPLOY
+           ======================= */
         stage('Kubernetes Deploy') {
             when {
                 expression { params.DEPLOY }
             }
             steps {
-                sh """
+                sh '''
                 kubectl apply -f ${K8S_BASE}/namespace
                 kubectl apply -f ${K8S_BASE}/database
+
                 kubectl apply -f ${K8S_BASE}/config-server
                 kubectl apply -f ${K8S_BASE}/discovery
                 kubectl apply -f ${K8S_BASE}/admin-server
@@ -101,7 +135,7 @@ pipeline {
 
                 kubectl apply -f ${K8S_BASE}/ingress
                 kubectl apply -f ${K8S_BASE}/hpa
-                """
+                '''
             }
         }
     }
