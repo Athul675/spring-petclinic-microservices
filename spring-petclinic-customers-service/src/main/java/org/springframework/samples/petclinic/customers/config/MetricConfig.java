@@ -3,7 +3,8 @@ package org.springframework.samples.petclinic.customers.config;
 import io.micrometer.core.aop.TimedAspect;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.jspecify.annotations.NonNull;
-import org.springframework.boot.micrometer.metrics.autoconfigure.MeterRegistryCustomizer;
+// FIXED: Updated the import path for Spring Boot 3
+import org.springframework.boot.actuate.autoconfigure.metrics.MeterRegistryCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
