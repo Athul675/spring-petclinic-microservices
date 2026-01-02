@@ -22,14 +22,28 @@ pipeline {
         stage('Process Microservices') {
             steps {
                 script {
-                    def services = ["spring-petclinic-config-server", "spring-petclinic-discovery-server", "spring-petclinic-admin-server", "spring-petclinic-customers-service", "spring-petclinic-vets-service", "spring-petclinic-visits-service", "spring-petclinic-api-gateway", "spring-petclinic-genai-service"]
+                    // Added genai-service to the list
+                    def services = [
+                        "spring-petclinic-config-server", 
+                        "spring-petclinic-discovery-server", 
+                        "spring-petclinic-admin-server", 
+                        "spring-petclinic-customers-service", 
+                        "spring-petclinic-vets-service", 
+                        "spring-petclinic-visits-service", 
+                        "spring-petclinic-api-gateway", 
+                        "spring-petclinic-genai-service"
+                    ]
                     for (svc in services) {
                         dir(svc) {
-                            echo "--- Individual Process for ${svc} ---"
+                            echo "--- Processing ${svc} ---"
                             sh "mvn clean package -DskipTests"
+                            
+                            // SonarQube Analysis
                             withSonarQubeEnv('sonarqube') {
                                 sh "/opt/sonar-scanner/bin/sonar-scanner"
                             }
+                            
+                            // Docker Build and Push
                             withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'U', passwordVariable: 'P')]) {
                                 sh "docker build -t ${DOCKERHUB_USERNAME}/${svc}:${IMAGE_TAG} ."
                                 sh "echo $P | docker login -u $U --password-stdin"
@@ -43,9 +57,36 @@ pipeline {
         stage('Kubernetes Deploy') {
             when { expression { params.DEPLOY } }
             steps {
-                sh 'kubectl apply -f ${K8S_BASE}/namespace && kubectl apply -f ${K8S_BASE}/database'
-                sh 'kubectl apply -f ${K8S_BASE}/config-server && kubectl apply -f ${K8S_BASE}/discovery && kubectl apply -f ${K8S_BASE}/admin-server'
-                sh 'kubectl apply -f ${K8S_BASE}/micro-services/customers && kubectl apply -f ${K8S_BASE}/micro-services/vets && kubectl apply -f ${K8S_BASE}/micro-services/visits && kubectl apply -f ${K8S_BASE}/micro-services/api-gateway'
+                script {
+                    echo "--- Applying K8s Manifests ---"
+                    // 1. Namespace
+                    sh "kubectl apply -f ${K8S_BASE}/namespace"
+                    
+                    // 2. Database (Secrets & StatefulSets)
+                    sh "kubectl apply -f ${K8S_BASE}/database"
+                    
+                    // 3. Infrastructure Services
+                    sh "kubectl apply -f ${K8S_BASE}/config-server"
+                    sh "kubectl apply -f ${K8S_BASE}/discovery"
+                    sh "kubectl apply -f ${K8S_BASE}/admin-server"
+                    
+                    // 4. Business Microservices (Added genai-service path if you have one, 
+                    // otherwise it follows the pattern below)
+                    sh "kubectl apply -f ${K8S_BASE}/micro-services/customers"
+                    sh "kubectl apply -f ${K8S_BASE}/micro-services/vets"
+                    sh "kubectl apply -f ${K8S_BASE}/micro-services/visits"
+                    sh "kubectl apply -f ${K8S_BASE}/micro-services/api-gateway"
+                    
+                    // 5. Apply missing HPA and Ingress
+                    echo "--- Applying HPA and Ingress ---"
+                    sh "kubectl apply -f ${K8S_BASE}/hpa"
+                    sh "kubectl apply -f ${K8S_BASE}/ingress"
+                    
+                    // 6. Optional: Force rollout if using 'latest' tag to ensure pods update
+                    if (params.IMAGE_TAG == 'latest') {
+                        sh "kubectl rollout restart deployment -n petclinic"
+                    }
+                }
             }
         }
     }
