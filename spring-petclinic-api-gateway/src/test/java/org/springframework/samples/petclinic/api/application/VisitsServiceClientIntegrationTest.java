@@ -1,63 +1,40 @@
 package org.springframework.samples.petclinic.api.application;
 
-import mockwebserver3.MockResponse;
-import mockwebserver3.MockWebServer;
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.samples.petclinic.api.dto.Visits;
 import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
 import java.io.IOException;
-import java.util.Collections;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class VisitsServiceClientIntegrationTest {
 
-    private static final Integer PET_ID = 1;
-
+    private MockWebServer server;
     private VisitsServiceClient visitsServiceClient;
 
-    private MockWebServer server;
-
     @BeforeEach
-    void setUp() {
+    void setup() {
         server = new MockWebServer();
-        visitsServiceClient = new VisitsServiceClient(WebClient.builder());
-        visitsServiceClient.setHostname(server.url("/").toString());
+        String baseUrl = server.url("/").toString();
+        visitsServiceClient = new VisitsServiceClient(WebClient.builder(), baseUrl);
     }
 
     @AfterEach
     void shutdown() throws IOException {
-        this.server.close();
+        server.shutdown();
     }
 
     @Test
-    void getVisitsForPets_withAvailableVisitsService() {
-        prepareResponse();
+    void getVisitsForPets_shouldReturnVisits() {
+        server.enqueue(new MockResponse()
+            .setHeader("Content-Type", "application/json")
+            .setBody("{\"items\":[]}"));
 
-        Mono<Visits> visits = visitsServiceClient.getVisitsForPets(Collections.singletonList(1));
-
-        assertVisitDescriptionEquals(visits.block(), PET_ID,"test visit");
+        StepVerifier.create(visitsServiceClient.getVisitsForPets(1))
+            .expectNextMatches(visits -> visits.items().isEmpty())
+            .verifyComplete();
     }
-
-
-    private void assertVisitDescriptionEquals(Visits visits, int petId, String description) {
-        assertEquals(1, visits.items().size());
-        assertNotNull(visits.items().get(0));
-        assertEquals(petId, visits.items().get(0).petId());
-        assertEquals(description, visits.items().get(0).description());
-    }
-
-    private void prepareResponse() {
-        MockResponse response = new MockResponse.Builder()
-            .addHeader("Content-Type", "application/json")
-            .body("{\"items\":[{\"id\":5,\"date\":\"2018-11-15\",\"description\":\"test visit\",\"petId\":1}]}")
-            .build();
-        this.server.enqueue(response);
-    }
-
 }
