@@ -2,7 +2,6 @@ package org.springframework.samples.petclinic.genai;
 
 import java.net.URI;
 import java.util.List;
-
 import jakarta.validation.constraints.NotNull;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
@@ -49,7 +48,6 @@ public class AIDataProvider {
             topK = 50;
         }
         
-        // Correct syntax for Spring AI 1.0.0
         SearchRequest sr = SearchRequest.query(vetAsJson).withTopK(topK);
 
         List<Document> topMatches = this.vectorStore.similaritySearch(sr);
