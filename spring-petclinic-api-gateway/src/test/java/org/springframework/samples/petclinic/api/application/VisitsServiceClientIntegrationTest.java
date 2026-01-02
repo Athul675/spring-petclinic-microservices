@@ -9,6 +9,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.test.StepVerifier;
 
 import java.io.IOException;
+import java.util.Collections;
 
 class VisitsServiceClientIntegrationTest {
 
@@ -18,8 +19,9 @@ class VisitsServiceClientIntegrationTest {
     @BeforeEach
     void setup() {
         server = new MockWebServer();
-        String baseUrl = server.url("/").toString();
-        visitsServiceClient = new VisitsServiceClient(WebClient.builder(), baseUrl);
+        // We use the builder but don't pass the string since your constructor doesn't take it
+        WebClient.Builder builder = WebClient.builder().baseUrl(server.url("/").toString());
+        visitsServiceClient = new VisitsServiceClient(builder);
     }
 
     @AfterEach
@@ -33,7 +35,8 @@ class VisitsServiceClientIntegrationTest {
             .setHeader("Content-Type", "application/json")
             .setBody("{\"items\":[]}"));
 
-        StepVerifier.create(visitsServiceClient.getVisitsForPets(1))
+        // FIXED: Passing Collections.singletonList(1) because the method expects a List<Integer>
+        StepVerifier.create(visitsServiceClient.getVisitsForPets(Collections.singletonList(1)))
             .expectNextMatches(visits -> visits.items().isEmpty())
             .verifyComplete();
     }
