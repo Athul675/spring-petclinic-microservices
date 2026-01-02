@@ -8,18 +8,14 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.reactive.function.client.WebClient;
 
-/**
- * A Configuration class for beans used by the Chat Client.
- *
- * @author Oded Shopen
- */
 @Configuration
 public class AIBeanConfiguration {
 
-	@Bean
-	VectorStore vectorStore(EmbeddingModel embeddingModel) {
-		return SimpleVectorStore.builder(embeddingModel).build();
-	}
+    @Bean
+    VectorStore vectorStore(EmbeddingModel embeddingModel) {
+        // Simple constructor for SimpleVectorStore
+        return new SimpleVectorStore(embeddingModel);
+    }
 
     @Bean
     @LoadBalanced
