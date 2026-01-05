@@ -22,7 +22,6 @@ pipeline {
         stage('Process Microservices') {
             steps {
                 script {
-                    // Added genai-service to the list
                     def services = [
                         "spring-petclinic-config-server", 
                         "spring-petclinic-discovery-server", 
@@ -70,21 +69,16 @@ pipeline {
                     sh "kubectl apply -f ${K8S_BASE}/discovery"
                     sh "kubectl apply -f ${K8S_BASE}/admin-server"
                     
-                    // 4. Business Microservices (Added genai-service path if you have one, 
-                    // otherwise it follows the pattern below)
+                    // 4. Business Microservices 
                     sh "kubectl apply -f ${K8S_BASE}/micro-services/customers"
                     sh "kubectl apply -f ${K8S_BASE}/micro-services/vets"
                     sh "kubectl apply -f ${K8S_BASE}/micro-services/visits"
                     sh "kubectl apply -f ${K8S_BASE}/micro-services/api-gateway"
                     
-                    // 5. Apply missing HPA and Ingress
+                    // 5. Apply HPA and Ingress
                     echo "--- Applying HPA and Ingress ---"
                     sh "kubectl apply -f ${K8S_BASE}/hpa"
                     sh "kubectl apply -f ${K8S_BASE}/ingress"
-                    
-                    // 6. Optional: Force rollout if using 'latest' tag to ensure pods update
-                    if (params.IMAGE_TAG == 'latest') {
-                        sh "kubectl rollout restart deployment -n petclinic"
                     }
                 }
             }
