@@ -1,46 +1,26 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: config-server
+  name: api-gateway
   namespace: petclinic
-  labels:
-    app: config-server
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: config-server
+      app: api-gateway
   template:
     metadata:
       labels:
-        app: config-server
+        app: api-gateway
     spec:
       containers:
-        - name: config-server
-          image: athul9thd/spring-petclinic-config-server:4.0.1
-          imagePullPolicy: IfNotPresent
+        - name: api-gateway
+          image: athul9thd/spring-petclinic-api-gateway:4.0.1
+          imagePullPolicy: Always
           ports:
-            - containerPort: 8888
+            - containerPort: 8080
           env:
             - name: SPRING_PROFILES_ACTIVE
-              value: git
-            - name: SPRING_CLOUD_CONFIG_SERVER_GIT_URI
-              value: https://github.com/Athul675/petclinic-config-repo.git
-            - name: SPRING_CLOUD_CONFIG_SERVER_GIT_DEFAULT_LABEL
-              value: main
-            - name: SERVER_PORT
-              value: "8888"
-
-          readinessProbe:
-            httpGet:
-              path: /actuator/health
-              port: 8888
-            initialDelaySeconds: 20
-            periodSeconds: 10
-
-          livenessProbe:
-            httpGet:
-              path: /actuator/health
-              port: 8888
-            initialDelaySeconds: 40
-            periodSeconds: 20
+              value: kubernetes
+            - name: SPRING_CONFIG_IMPORT
+              value: "optional:configserver:http://config-server:8888"
