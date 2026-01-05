@@ -21,13 +21,10 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8761
+          envFrom:
+            - configMapRef:
+                name: petclinic-configmap
           env:
-            - name: SPRING_PROFILES_ACTIVE
-              value: "kubernetes"
-            - name: CONFIG_SERVER_URL
-              value: "http://config-server:8888"
-            - name: SPRING_CLOUD_CONFIG_URI
-              value: "http://config-server:8888"
             - name: SERVER_PORT
               value: "8761"
           readinessProbe:

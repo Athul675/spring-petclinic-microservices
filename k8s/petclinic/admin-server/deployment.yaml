@@ -21,10 +21,6 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
-          env:
-            - name: SPRING_PROFILES_ACTIVE
-              value: kubernetes
-            - name: SPRING_CONFIG_IMPORT
-              value: "optional:configserver:http://config-server:8888"
-            - name: EUREKA_CLIENT_SERVICEURL_DEFAULTZONE
-              value: "http://discovery-server:8761/eureka/"
+          envFrom:
+            - configMapRef:
+                name: petclinic-configmap

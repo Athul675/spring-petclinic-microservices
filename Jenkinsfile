@@ -37,13 +37,15 @@ pipeline {
                             echo "--- Processing ${svc} ---"
                             sh "mvn clean package -DskipTests"
                             
+                            // SonarQube Analysis
                             withSonarQubeEnv('sonarqube') {
                                 sh "/opt/sonar-scanner/bin/sonar-scanner"
                             }
                             
+                            // Docker Build and Push
                             withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'U', passwordVariable: 'P')]) {
                                 sh "docker build -t ${DOCKERHUB_USERNAME}/${svc}:${IMAGE_TAG} ."
-                                sh "echo $P | docker login -u $U --password-stdin"
+                                sh "echo \$P | docker login -u \$U --password-stdin"
                                 sh "docker push ${DOCKERHUB_USERNAME}/${svc}:${IMAGE_TAG}"
                             }
                         }
@@ -55,17 +57,27 @@ pipeline {
             when { expression { params.DEPLOY } }
             steps {
                 script {
-                    echo "--- Applying K8s Manifests ---"
+                    echo "--- Applying K8s Manifests in Dependency Order ---"
+                    
+                    // 1. Create Namespace 
                     sh "kubectl apply -f ${K8S_BASE}/namespace"
+                    
+                    // 2.ConfigMap and Database (Secrets/PVCs)
+                    sh "kubectl apply -f ${K8S_BASE}/configmap"
                     sh "kubectl apply -f ${K8S_BASE}/database"
+                    
+                    // 3. Infrastructure 
                     sh "kubectl apply -f ${K8S_BASE}/config-server"
                     sh "kubectl apply -f ${K8S_BASE}/discovery"
+
+                    // 4. Deploy Microservices
                     sh "kubectl apply -f ${K8S_BASE}/admin-server"
                     sh "kubectl apply -f ${K8S_BASE}/micro-services/customers"
                     sh "kubectl apply -f ${K8S_BASE}/micro-services/vets"
                     sh "kubectl apply -f ${K8S_BASE}/micro-services/visits"
                     sh "kubectl apply -f ${K8S_BASE}/micro-services/api-gateway"
                     
+                    // 6. Routing and Scaling
                     echo "--- Applying HPA and Ingress ---"
                     sh "kubectl apply -f ${K8S_BASE}/hpa"
                     sh "kubectl apply -f ${K8S_BASE}/ingress"
@@ -73,5 +85,7 @@ pipeline {
             }
         }
     }
-    post { always { cleanWs() } }
+    post { 
+        always { cleanWs() } 
+    }
 }
