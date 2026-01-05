@@ -1,43 +1,41 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: customers-service
+  name: config-server
   namespace: petclinic
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: customers-service
+      app: config-server
   template:
     metadata:
       labels:
-        app: customers-service
+        app: config-server
     spec:
       containers:
-      - name: customers-service
-        image: athul9thd/spring-petclinic-customers-service:4.0.1
+      - name: config-server
+        image: athul9thd/spring-petclinic-config-server:4.0.1
         imagePullPolicy: Always
         ports:
-        - containerPort: 8080
+        - containerPort: 8888
         env:
         - name: SPRING_PROFILES_ACTIVE
-          value: kubernetes
+          value: native
+        - name: SPRING_CLOUD_CONFIG_SERVER_NATIVE_SEARCH_LOCATIONS
+          value: classpath:/config
         resources:
-          requests:
-            cpu: "100m"
-            memory: "256Mi"
           limits:
-            cpu: "500m"
             memory: "512Mi"
+          requests:
+            memory: "256Mi"
         readinessProbe:
           httpGet:
-            path: /actuator/health/readiness
-            port: 8080
-          initialDelaySeconds: 30
-          periodSeconds: 10
+            path: /actuator/health
+            port: 8888
+          initialDelaySeconds: 20
         livenessProbe:
           httpGet:
-            path: /actuator/health/liveness
-            port: 8080
-          initialDelaySeconds: 60
-          periodSeconds: 20
+            path: /actuator/health
+            port: 8888
+          initialDelaySeconds: 40
