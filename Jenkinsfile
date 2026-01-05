@@ -37,12 +37,10 @@ pipeline {
                             echo "--- Processing ${svc} ---"
                             sh "mvn clean package -DskipTests"
                             
-                            // SonarQube Analysis
                             withSonarQubeEnv('sonarqube') {
                                 sh "/opt/sonar-scanner/bin/sonar-scanner"
                             }
                             
-                            // Docker Build and Push
                             withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'U', passwordVariable: 'P')]) {
                                 sh "docker build -t ${DOCKERHUB_USERNAME}/${svc}:${IMAGE_TAG} ."
                                 sh "echo $P | docker login -u $U --password-stdin"
@@ -58,28 +56,19 @@ pipeline {
             steps {
                 script {
                     echo "--- Applying K8s Manifests ---"
-                    // 1. Namespace
                     sh "kubectl apply -f ${K8S_BASE}/namespace"
-                    
-                    // 2. Database (Secrets & StatefulSets)
                     sh "kubectl apply -f ${K8S_BASE}/database"
-                    
-                    // 3. Infrastructure Services
                     sh "kubectl apply -f ${K8S_BASE}/config-server"
                     sh "kubectl apply -f ${K8S_BASE}/discovery"
                     sh "kubectl apply -f ${K8S_BASE}/admin-server"
-                    
-                    // 4. Business Microservices 
                     sh "kubectl apply -f ${K8S_BASE}/micro-services/customers"
                     sh "kubectl apply -f ${K8S_BASE}/micro-services/vets"
                     sh "kubectl apply -f ${K8S_BASE}/micro-services/visits"
                     sh "kubectl apply -f ${K8S_BASE}/micro-services/api-gateway"
                     
-                    // 5. Apply HPA and Ingress
                     echo "--- Applying HPA and Ingress ---"
                     sh "kubectl apply -f ${K8S_BASE}/hpa"
                     sh "kubectl apply -f ${K8S_BASE}/ingress"
-                    }
                 }
             }
         }
